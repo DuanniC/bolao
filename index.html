@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a7d3b">
-<title>Bolão da Família – Mega da Virada</title>
+<title>Bolão – Mega da Virada</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -202,11 +202,11 @@ body.busy main{pointer-events:none}body.busy{cursor:progress}
 <body>
 <div id="bar"></div>
 <header class="top"><div class="wrap bar">
-  <a class="brand" href="#/"><span class="logo">🍀</span><span><b id="ttl">Bolão da Família</b><small>Mega da Virada</small></span></a>
+  <a class="brand" href="#/"><span class="logo">🍀</span><span><b id="ttl">Bolão </b><small>Mega da Virada</small></span></a>
   <nav class="dnav" id="dnav"></nav><span class="sp"></span><div id="who"></div>
 </div></header>
 <main class="wrap" id="app"><div class="card center muted">Carregando…</div></main>
-<footer>Feito com 💚 pela família · <a href="#/admin">Área do administrador</a></footer>
+<footer>Feito com 💚 · <a href="#/admin">Área do administrador</a></footer>
 <nav class="bnav" id="bnav"></nav>
 <div id="toasts"></div><div id="modal"></div>
 <noscript><p style="padding:20px">Ative o JavaScript para usar o bolão.</p></noscript>
@@ -218,10 +218,10 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <script>
 const BIN='6b059849ffd5d16053da74b4',KEY='$2a$10$b1FZrJHII1lNt.rCgnSkq.mcKlqYjQ.nELIidAU.4bPQCqdMwOysO'; // <- configure só estas 2 linhas
 const BASE='https://api.jsonbin.io/v3/b/'+BIN,PRICE=6,MIN=3;
-const DEF={name:'Bolão da Família – Mega da Virada',pixKey:'',pixName:'BOLAO',pixCity:'BELO HORIZONTE',deadline:'',payDeadline:'',holdMin:60,closed:false,
-msgHome:'Bem-vindo ao nosso bolão! 🍀',msgDup:'Ops! 🍀 Essa combinação já foi escolhida por alguém da família! Que tal tentar outros números? Aqui todo mundo merece uma chance diferente! 😂',
-msgPay:'🍀 Falta pouco! Faça o Pix agora para garantir sua participação no bolão. A família está torcendo por você! 💚'};
-const OLD_PAY='🍀 Agora é com você! Faça o Pix para garantir sua participação no nosso bolão. Quem não pagar a tempo vai ficar de fora dessa chuva de dinheiro! 😂💸 A família está torcendo por você!';
+const DEF={name:'Bolão – Mega da Virada',pixKey:'',pixName:'BOLAO',pixCity:'BELO HORIZONTE',deadline:'',payDeadline:'',holdMin:60,closed:false,
+msgHome:'Bem-vindo ao nosso bolão! 🍀',msgDup:'Ops! 🍀 Essa combinação já foi escolhida por alguém! Que tal tentar outros números? Aqui todo mundo merece uma chance diferente! 😂',
+msgPay:'🍀 Falta pouco! Faça o Pix agora para garantir sua participação no bolão. 💚'};
+const OLD_PAY='🍀 Agora é com você! Faça o Pix para garantir sua participação no nosso bolão. Quem não pagar a tempo vai ficar de fora dessa chuva de dinheiro! 😂💸';
 
 /* ================= "SERVIDOR" (roda no navegador, grava no JSONBin) ================= */
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -357,7 +357,7 @@ return h?`<div class="notices">${h}</div>`:''}
 const steps=()=>`<div class="sec-h"><span class="pill">Como funciona</span><h2>Simples como 1-2-3.</h2><p class="muted">Participar leva menos de dois minutos.</p></div>
 <div class="steps"><div class="card step"><span class="n">1</span><span class="ic">🎯</span><h3>Escolha seus números</h3><p>Marque 6 números de 01 a 60 ou use a surpresinha. Mínimo de ${MIN} jogos.</p></div>
 <div class="card step"><span class="n">2</span><span class="ic">💸</span><h3>Pague na hora</h3><p>Pagamento no momento da realização do jogo: ${R(PRICE)} por jogo, por QR Code ou Pix copia e cola.</p></div>
-<div class="card step"><span class="n">3</span><span class="ic">🏆</span><h3>Torça com a família</h3><p>Pagamento confirmado, é só aguardar o sorteio e ver o resultado aqui.</p></div></div>`;
+<div class="card step"><span class="n">3</span><span class="ic">🏆</span><h3>Imagina só</h3><p>Pagamento confirmado, é só aguardar o sorteio e ver o resultado aqui.</p></div></div>`;
 
 /* ================= ACESSO ================= */
 function login(){const c=S.cfg;
