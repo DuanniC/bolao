@@ -343,7 +343,6 @@ window.addEventListener('hashchange',route);
 
 function deadlineBox(){const c=S.cfg;let h='';
 if(closedNow())h+='<div class="notice warn">🔒 Inscrições encerradas</div>';else if(c.deadline)h+=`<div class="notice">⏰ Inscrições até <b>${fmtT(c.deadline)}</b> · faltam ${left(c.deadline)}</div>`;
-if(c.payDeadline)h+=`<div class="notice">💸 Pagamento até <b>${fmtT(c.payDeadline)}</b>${Date.now()>new Date(c.payDeadline)?' · <b>prazo encerrado</b>':''}</div>`;
 return h?`<div class="notices">${h}</div>`:''}
 const steps=()=>`<div class="sec-h"><span class="pill">Como funciona</span><h2>Simples como 1-2-3.</h2><p class="muted">Participar leva menos de dois minutos.</p></div>
 <div class="steps"><div class="card step"><span class="n">1</span><span class="ic">🎯</span><h3>Escolha seus números</h3><p>Marque 6 números de 01 a 60 ou use a surpresinha. Mínimo de ${MIN} jogos.</p></div>
