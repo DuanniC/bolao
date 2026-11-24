@@ -75,6 +75,10 @@ textarea{resize:vertical;min-height:84px}
 .notice{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 14px;font-size:14px}
 .paynote{background:#fff8dd;border-color:#f3dc87;margin-top:14px;font-size:15px}
 .pxs{min-height:20px;margin-top:8px;font-size:13px;font-weight:600}.pxok{color:#0a6a32}.pxp{color:var(--mut)}.pxe{color:#c0272d}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.ggrid .stat small:last-child{margin-top:2px}
+.gsel{width:auto;padding:5px 26px 5px 10px;font-size:13px;font-weight:700;border-radius:999px;border-width:1.5px;background-color:#f1f7f3}
+.gb{display:inline-block;border-radius:999px;padding:3px 10px;font:800 11px/1.2 var(--f)}.gb.familia{background:#d3f5df;color:#0a6a32}.gb.trabalho{background:#dbe9ff;color:#1c4fa3}.gb.none{background:#eef1ef;color:#667}
 .notice.warn{border-color:#f3c7c7;background:#fff5f5;color:#9b2226;font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chips span{background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700}
@@ -258,7 +262,7 @@ const C=db.config,log=m=>{db.log.push({t:new Date().toISOString(),m});dirty=true
 const pubCfg=()=>({...C,holdMin:hold,hasAdmin:!!db.adminHash});
 if(p==='/cfg')return out(pubCfg());
 /* acesso: só primeiro nome + chave Pix (entra se já existe, cadastra se for novo) */
-if(p==='/enter'){const name=String(b.name||'').trim().replace(/\s+/g,' '),pix=String(b.pix||'').trim();if(!name||!pix)ER('Informe seu primeiro nome e sua chave Pix.');const dp=detectPix(pix);if(!dp.ok)ER('Chave Pix inválida: '+(dp.msg||'confira o formato.'));
+if(p==='/enter'){const first=String(b.first||'').trim(),last=String(b.last||'').trim(),name=(first+' '+last).trim().replace(/\s+/g,' '),pix=String(b.pix||'').trim();if(!first||!last||!pix)ER('Informe o primeiro nome, o segundo nome e sua chave Pix.');const dp=detectPix(pix);if(!dp.ok)ER('Chave Pix inválida: '+(dp.msg||'confira o formato.'));
 let u=db.users.find(x=>kk(x.name)===kk(name)&&npix(x.pix)===npix(pix)),isNew=false;
 if(!u){u={id:rid(),name,pix:dp.value,pixType:dp.type,at:now};db.users.push(u);log('Cadastro: '+name);isNew=true}
 return out({uid:u.id,name:u.name,pix:u.pix,isNew})}
@@ -278,29 +282,31 @@ if(p==='/a/setup'){if(db.adminHash)ER('Senha já definida.');if(String(b.pw||'')
 if(p.startsWith('/a/')){if(!db.adminHash||await sha(pw||'')!==db.adminHash)ER('Senha inválida.');
 if(p==='/a/state')return out({config:{...C,holdMin:hold},users:db.users,games:db.games,result:db.result,prizes:db.prizes,log:db.log.slice(-100).reverse()});
 if(p==='/a/paid'){const st=b.paid?'PAGO':'PENDENTE',gs=db.games.filter(g=>g.b===b.b);if(!gs.length)ER('Jogos não encontrados (podem ter expirado).');gs.forEach(g=>g.status=st);const u=db.users.find(x=>x.id===gs[0].uid);log('Pagamento '+st+' – '+(u?u.name:'?')+' ('+gs.length+' jogo(s))');return out({ok:1})}
+if(p==='/a/group'){const u=db.users.find(x=>x.id===b.uid);if(!u)ER('Participante não encontrado.');const g=b.group||'';if(g&&!GL[g])ER('Grupo inválido.');u.group=g;log('Grupo de '+u.name+': '+(GL[g]||'sem grupo'));return out({ok:1})}
 if(p==='/a/delUser'){const u=db.users.find(x=>x.id===b.uid);if(!u)ER('Participante não encontrado.');const n=db.games.filter(g=>g.uid===u.id).length;
 db.users=db.users.filter(x=>x.id!==u.id);db.games=db.games.filter(g=>g.uid!==u.id);db.prizes.forEach(x=>x.uids=x.uids.filter(i=>i!==u.id));log('Participante excluído: '+u.name+' (e '+n+' jogo(s))');return out({ok:1})}
 if(p==='/a/delGame'){const g=db.games.find(x=>x.id===b.id);if(!g)ER('Jogo não encontrado.');const u=db.users.find(x=>x.id===g.uid);db.games=db.games.filter(x=>x.id!==g.id);log('Jogo excluído: '+g.nums.map(n=>String(n).padStart(2,'0')).join('-')+' ('+(u?u.name:'?')+')');return out({ok:1})}
 if(p==='/a/purgePending'){const n=db.games.filter(g=>g.status!=='PAGO').length;db.games=db.games.filter(g=>g.status==='PAGO');log('Jogos pendentes excluídos: '+n);return out({n})}
 if(p==='/a/cfg'){const c={...C,...b};c.holdMin=Math.max(5,+c.holdMin||60);c.closed=!!c.closed;db.config=c;log('Configurações alteradas');return out({ok:1})}
 if(p==='/a/result'){const nums=[...new Set((b.nums||[]).map(Number))].filter(n=>Number.isInteger(n)&&n>=1&&n<=60);if(nums.length!==6)ER('Informe 6 números diferentes (de 1 a 60).');db.result={nums:nums.sort((a,c)=>a-c),published:!!b.publish};log('Resultado '+(b.publish?'publicado: ':'salvo: ')+nums.join('-'));return out({ok:1})}
-if(p==='/a/prize'){const tier=Number(b.tier),total=Number(b.total);if(![4,5,6].includes(tier)||!(total>0))ER('Informe faixa e valor.');if(!db.result)ER('Salve o resultado antes.');
-const w=db.games.filter(g=>g.status==='PAGO'&&g.nums.filter(n=>db.result.nums.includes(n)).length===tier),uids=[...new Set(w.map(g=>g.uid))];if(!uids.length)return out({uids:[],each:0,games:0});
-const each=Math.floor(total*100/uids.length)/100;if(b.publish){db.prizes=db.prizes.filter(x=>x.tier!==tier).concat({tier,total,uids,each});log('Premiação publicada: faixa '+tier+', R$ '+total+', '+uids.length+' pessoa(s)')}
-return out({uids:uids.map(i=>(db.users.find(u=>u.id===i)||{}).name||'?'),each,games:w.length})}}
+if(p==='/a/prize'){const tier=Number(b.tier),total=Number(b.total),grp=b.group;if(!GL[grp])ER('Escolha o grupo (Família ou Trabalho).');if(![4,5,6].includes(tier)||!(total>0))ER('Informe faixa e valor.');if(!db.result)ER('Salve o resultado antes.');
+const nm=id=>(db.users.find(u=>u.id===id)||{}).name||'?',gOf=g=>(db.users.find(u=>u.id===g.uid)||{}).group||'',win=g=>g.status==='PAGO'&&g.nums.filter(n=>db.result.nums.includes(n)).length===tier;
+const w=db.games.filter(g=>win(g)&&gOf(g)===grp),uids=[...new Set(w.map(g=>g.uid))],sem=[...new Set(db.games.filter(g=>win(g)&&!gOf(g)).map(g=>nm(g.uid)))];if(!uids.length)return out({uids:[],each:0,games:0,sem});
+const each=Math.floor(total*100/uids.length)/100;if(b.publish){db.prizes=db.prizes.filter(x=>!(x.tier===tier&&x.group===grp)).concat({tier,group:grp,total,uids,each});log('Premiação publicada ('+GL[grp]+'): faixa '+tier+', R$ '+total+', '+uids.length+' pessoa(s)')}
+return out({uids:uids.map(nm),each,games:w.length,sem})}}
 ER('Rota não encontrada.')}
 
 /* ================= UTILIDADES ================= */
 const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0'),R=v=>'R$ '+Number(v).toFixed(2).replace('.',','),A=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const TIER={4:'Quadra',5:'Quina',6:'Sena'};
+const TIER={4:'Quadra',5:'Quina',6:'Sena'},GL={familia:'Família',trabalho:'Trabalho'};
 const fmtT=t=>new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const left=iso=>{const ms=new Date(iso)-Date.now();if(ms<=0)return'encerrado';const m=Math.floor(ms/6e4),d=Math.floor(m/1440),h=Math.floor(m%1440/60);return d?d+'d '+h+'h':h?h+'h '+m%60+'min':m+' min'};
 const hitsOf=(g,r)=>g.nums.filter(n=>r.includes(n));
 const balls=(g,r,c='')=>g.nums.map(n=>`<span class="ball ${c} ${r&&r.includes(n)?'hit':''}">${pad(n)}</span>`).join('');
 const groupB=gs=>{const m={};gs.forEach(g=>(m[g.b]??=[]).push(g));return Object.values(m).sort((a,b)=>b[0].at-a[0].at)};
 const store={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}},del:k=>{try{localStorage.removeItem(k)}catch{}}};
-let S={cfg:{},auth:null,draft:[],sel:[],adm:'',st:null,tab:'p',q:'',f:'',pf:'all',open:{},dup:null,busy:0,err:null,tick:0};
+let S={cfg:{},auth:null,draft:[],sel:[],adm:'',st:null,tab:'p',q:'',f:'',pf:'all',gf:'',open:{},dup:null,busy:0,err:null,tick:0};
 try{S.auth=JSON.parse(store.get('bolao')||'null');if(S.auth&&!(S.auth.uid&&S.auth.pix))S.auth=null}catch{S.auth=null}
 try{S.adm=sessionStorage.getItem('bolaoAdm')||''}catch{}
 const closedNow=()=>!!(S.cfg.closed||(S.cfg.deadline&&Date.now()>new Date(S.cfg.deadline)));
@@ -353,15 +359,15 @@ const steps=()=>`<div class="sec-h"><span class="pill">Como funciona</span><h2>S
 function login(){const c=S.cfg;
 view(`<section class="hero"><div><span class="pill">🎆 Mega da Virada</span><h1>Bem-vindo ao <span class="hl">nosso Bolão</span></h1>
 <div class="chips"><span>🎟️ ${R(PRICE)} por jogo</span><span>✋ Mínimo de ${MIN} jogos</span><span>⚡ Pagamento na hora, via Pix</span></div>${deadlineBox()}</div>
-<form class="card login" onsubmit="return doEnter(event)"><h2>Entrar no bolão</h2><p class="muted" style="margin-top:6px">Só precisa do seu primeiro nome e da sua chave Pix.</p>
-<label for="nm">Primeiro nome</label><input id="nm" autocomplete="given-name" autocapitalize="words" placeholder="Ex.: Maria" required>
+<form class="card login" onsubmit="return doEnter(event)"><h2>Entrar no bolão</h2><p class="muted" style="margin-top:6px">Só precisa do seu nome e da sua chave Pix.</p>
+<div class="row2"><div><label for="nm">Primeiro nome</label><input id="nm" autocomplete="given-name" autocapitalize="words" placeholder="Ex.: Maria" required></div><div><label for="sn">Segundo nome</label><input id="sn" autocomplete="family-name" autocapitalize="words" placeholder="Ex.: Silva" required></div></div>
 <label for="px">Sua chave Pix</label><input id="px" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="CPF, e-mail, celular ou aleatória" oninput="pxLive(this,'pxs')" required>
 <div class="pxs" id="pxs" aria-live="polite"></div>
 <div style="margin-top:20px"><button class="btn big" type="submit">Entrar →</button></div>
 <p class="hint">🔒 Sem senha. Na primeira vez seu cadastro é criado automaticamente; depois, use sempre os mesmos dados para ver seus jogos. Aceitamos CPF, e-mail, celular com DDD ou chave aleatória — o tipo é reconhecido enquanto você digita. Sua chave serve para receber o prêmio, se a família ganhar! 🏆</p></form></section>
 ${steps()}
 <div class="band"><svg viewBox="0 0 1440 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34C240 0 480 0 720 17S1200 34 1440 6V0H0Z" fill="#f6fcf8"/></svg><h2>Pronto para tentar a sorte?</h2><p>Entre com seu nome e sua chave Pix e faça seus jogos.</p><a class="btn gold" href="#/" onclick="scrollTo({top:0,behavior:'smooth'});setTimeout(()=>$('#nm').focus(),400);return false">Entrar agora →</a></div>`)}
-async function doEnter(e){e.preventDefault();const dp=detectPix($('#px').value);if(!dp.ok){toast('Chave Pix inválida: '+(dp.msg||'confira o formato.'),'err');$('#px').focus();return false}const d=await api('/enter',{name:$('#nm').value,pix:dp.value});if(!d)return false;
+async function doEnter(e){e.preventDefault();if(!$('#nm').value.trim()||!$('#sn').value.trim()){toast('Informe o primeiro e o segundo nome.','err');return false}const dp=detectPix($('#px').value);if(!dp.ok){toast('Chave Pix inválida: '+(dp.msg||'confira o formato.'),'err');$('#px').focus();return false}const d=await api('/enter',{first:$('#nm').value,last:$('#sn').value,pix:dp.value});if(!d)return false;
 S.auth={uid:d.uid,pix:d.pix,name:d.name};store.set('bolao',JSON.stringify(S.auth));toast(d.isNew?'Cadastro criado! Bem-vindo(a), '+d.name+' 🍀':'Que bom te ver de novo, '+d.name+'! 🍀');
 const r=await srv('/cfg',{}).catch(()=>null);if(r)S.cfg=r;nav('/');return false}
 
@@ -457,22 +463,28 @@ const usersMap=s=>Object.fromEntries(s.users.map(x=>[x.id,x]));
 function tabP(s){const u=usersMap(s),ps=s.games.filter(g=>g.status==='PAGO').length,pe=s.games.length-ps,pb=groupB(s.games.filter(g=>g.status!=='PAGO')),over=s.config.payDeadline&&Date.now()>new Date(s.config.payDeadline);
 const st=[['👥','Participantes',s.users.length],['🎟️','Jogos',s.games.length],['✅','Pagos',ps],['⏳','Pendentes',pe],['💰','Recebido',R(ps*PRICE)],['🕓','A receber',R(pe*PRICE)]];
 return`<div class="sgrid">${st.map(([i,l,v])=>`<div class="stat"><i>${i}</i><small>${l}</small><b>${v}</b></div>`).join('')}</div>
+${grpPanel(s)}
 ${over&&pe?`<div class="banner"><span>⏰ O prazo de pagamento terminou e ainda há <b>${pe}</b> jogo(s) pendente(s).</span><button class="btn sm danger" onclick="purge(${pe})">Excluir pendentes</button></div>`:''}
 <h3 class="h3">Aguardando pagamento (${pb.length})</h3><div class="card" style="padding:6px 16px">${pb.map(bg=>{const x=u[bg[0].uid]||{name:'?'};return`<div class="qi"><div><b>${esc(x.name)}</b><br><small class="muted">${fmtT(bg[0].at)} · ${bg.length} jogo(s) · ${R(bg.length*PRICE)}</small></div><div class="row" style="flex:none"><button class="btn sm ghost" data-q="${esc(x.name)}" onclick="S.q=this.dataset.q;S.tab='u';adm(true)">Ver</button><button class="btn sm" onclick="payB('${bg[0].b}',true)">✔ Marcar como pago</button></div></div>`}).join('')||'<p class="muted empty">Nenhum pagamento pendente 🎉</p>'}</div>
 <div style="margin-top:14px"><button class="btn ghost sm" onclick="csv()">⬇ Exportar CSV</button></div>`}
-function tabU(s){const fl=[['all','Todos'],['pend','Com pendências'],['paid','Tudo pago'],['none','Sem jogos']];
+function tabU(s){const fl=[['all','Todos'],['g_familia','👨‍👩‍👧 Família'],['g_trabalho','💼 Trabalho'],['g_none','Sem grupo'],['pend','Com pendências'],['paid','Tudo pago'],['none','Sem jogos']];
 return`<div class="card"><div class="tools"><input id="q" type="search" placeholder="🔍 Buscar por nome ou Pix" value="${esc(S.q)}" oninput="S.q=this.value;paintU()"><button class="btn ghost sm" onclick="csv()">⬇ CSV</button></div>
 <div class="fchips">${fl.map(([k,t])=>`<button class="fc ${S.pf===k?'on':''}" onclick="S.pf='${k}';adm()">${t}</button>`).join('')}</div></div><div id="ulist">${ulist(s)}</div>`}
 const paintU=()=>{$('#ulist').innerHTML=ulist(S.st)};
 function ulist(s){const r=s.result?s.result.nums:null,q=kk(S.q);
 const rows=s.users.map(u=>{const gs=s.games.filter(g=>g.uid===u.id);return{u,gs,last:Math.max(u.at||0,...gs.map(g=>g.at)),pe:gs.filter(g=>g.status!=='PAGO').length}})
-.filter(o=>(!q||kk(o.u.name).includes(q)||kk(o.u.pix).includes(q))&&(S.pf==='all'||(S.pf==='pend'&&o.pe)||(S.pf==='paid'&&o.gs.length&&!o.pe)||(S.pf==='none'&&!o.gs.length))).sort((a,b)=>b.last-a.last);
+.filter(o=>(!q||kk(o.u.name).includes(q)||kk(o.u.pix).includes(q))&&(S.pf==='all'||(S.pf==='pend'&&o.pe)||(S.pf==='paid'&&o.gs.length&&!o.pe)||(S.pf==='none'&&!o.gs.length)||(S.pf==='g_familia'&&o.u.group==='familia')||(S.pf==='g_trabalho'&&o.u.group==='trabalho')||(S.pf==='g_none'&&!o.u.group))).sort((a,b)=>b.last-a.last);
 return rows.map(({u,gs,pe})=>{const open=S.open[u.id];
 return`<div class="ucard ${open?'open':''}"><div class="uh" onclick="togU('${u.id}')"><span class="av">${esc(u.name.trim()[0]||'?')}</span><div class="um"><b>${esc(u.name)}</b><small>${esc(pixShow(u.pix))}</small>
-<div class="sum"><span class="sm2">🎟️ ${gs.length} jogo(s)</span><span class="sm2">💰 ${R(gs.length*PRICE)}</span>${pe?`<span class="st PENDENTE">${pe} pendente(s)</span>`:''}${gs.length&&!pe?'<span class="st PAGO">TUDO PAGO</span>':''}</div></div><span class="chev">▾</span></div>
+<div class="sum"><select class="gsel" aria-label="Grupo do participante" onclick="event.stopPropagation()" onchange="setGrp('${u.id}',this.value)">${gopt(u.group)}</select><span class="sm2">🎟️ ${gs.length} jogo(s)</span><span class="sm2">💰 ${R(gs.length*PRICE)}</span>${pe?`<span class="st PENDENTE">${pe} pendente(s)</span>`:''}${gs.length&&!pe?'<span class="st PAGO">TUDO PAGO</span>':''}</div></div><span class="chev">▾</span></div>
 ${open?`<div class="ub"><div class="row" style="margin:10px 0"><button class="btn sm ghost" data-copy="${esc(pixVal(u.pix))}" onclick="copyText(this.dataset.copy)">📋 Copiar Pix</button><button class="btn sm dgh" onclick="delU('${u.id}')">🗑 Excluir participante</button></div>
 ${groupB(gs).map(bg=>{const pd=bg.every(g=>g.status==='PAGO');return`<div class="gm"><div class="bth"><span><span class="st ${pd?'PAGO':'PENDENTE'}">${pd?'PAGO':'PENDENTE'}</span> <small class="muted"><b>${fmtT(bg[0].at)}</b> · ${R(bg.length*PRICE)}</small></span><button class="btn sm ${pd?'ghost':''}" onclick="payB('${bg[0].b}',${!pd})">${pd?'Voltar p/ pendente':'✔ Marcar como pago'}</button></div>
 ${bg.map(g=>{const h=r?hitsOf(g,r).length:null;return`<div class="gl"><div>${balls(g,r,'sm')}${h!==null?`<small class="muted"> ${h} acerto(s)</small>`:''}</div><button class="x" onclick="delG('${g.id}')" aria-label="Excluir jogo" title="Excluir jogo">🗑</button></div>`}).join('')}</div>`}).join('')||'<p class="muted empty">Sem jogos ainda.</p>'}</div>`:''}</div>`}).join('')||'<div class="card center muted" style="margin-top:12px">Nenhum participante encontrado.</div>'}
+const gopt=g=>[['','Sem grupo'],['familia','👨‍👩‍👧 Família'],['trabalho','💼 Trabalho']].map(([v,t])=>`<option value="${v}" ${(g||'')===v?'selected':''}>${t}</option>`).join('');
+const gbadge=g=>`<span class="gb ${g||'none'}">${GL[g]||'Sem grupo'}</span>`;
+async function setGrp(id,g){if(await api('/a/group',{uid:id,group:g},1))reload('Grupo atualizado ✅')}
+function grpPanel(s){const nog=s.users.filter(u=>!u.group).length,rows=['familia','trabalho'].map(g=>{const us=s.users.filter(u=>u.group===g),ids=new Set(us.map(u=>u.id)),gs=s.games.filter(x=>ids.has(x.uid)),pd=gs.filter(x=>x.status==='PAGO').length;return`<div class="stat"><small>${g==='familia'?'👨‍👩‍👧':'💼'} Bolão ${GL[g]}</small><b>${R(pd*PRICE)}</b><small>${us.length} participante(s) · ${gs.length} jogo(s) · ${pd} pago(s)</small></div>`}).join('');
+return`<h3 class="h3">Por grupo</h3><div class="ggrid">${rows}</div>${nog?`<div class="banner"><span>👥 <b>${nog}</b> participante(s) ainda sem grupo. Só quem tem grupo entra na divisão do prêmio.</span><button class="btn sm" onclick="S.pf='g_none';S.tab='u';adm(true)">Classificar</button></div>`:''}`}
 const togU=id=>{S.open[id]=!S.open[id];paintU()};
 async function payB(b,p){if(await api('/a/paid',{b,paid:p},1))reload(p?'Pagamento confirmado ✅':'Voltou para pendente')}
 async function delG(id){const g=S.st.games.find(x=>x.id===id);if(!g)return;if(!await ask({title:'Excluir este jogo?',msg:`<p>${balls(g,null,'sm')}</p><p class="muted" style="margin-top:8px">O jogo será removido do banco de dados e a combinação ficará livre para outras pessoas.</p>`,ok:'Excluir jogo',danger:true}))return;
@@ -481,19 +493,19 @@ async function delU(id){const u=S.st.users.find(x=>x.id===id),n=S.st.games.filte
 if(!await ask({title:'Excluir participante?',msg:`<p><b>${esc(u.name)}</b> e <b>${n} jogo(s)</b> serão removidos do banco de dados. Essa ação não pode ser desfeita.</p>`,ok:'Excluir tudo',danger:true}))return;
 if(await api('/a/delUser',{uid:id},1)){delete S.open[id];reload('Participante excluído')}}
 async function purge(n){if(!await ask({title:'Excluir jogos pendentes?',msg:`<p>${n} jogo(s) sem pagamento serão removidos e as combinações ficarão livres.</p>`,ok:'Excluir pendentes',danger:true}))return;if(await api('/a/purgePending',{},1))reload('Pendentes excluídos')}
-function tabR(s){const r=s.result?s.result.nums:null,u=usersMap(s),rows=r?s.games.map(g=>({g,x:u[g.uid]||{name:'?'},h:hitsOf(g,r)})).filter(o=>S.f===''||o.h.length==S.f).sort((a,b)=>b.h.length-a.h.length):[];
+function tabR(s){const r=s.result?s.result.nums:null,u=usersMap(s),rows=r?s.games.map(g=>({g,x:u[g.uid]||{name:'?'},h:hitsOf(g,r)})).filter(o=>(S.f===''||o.h.length==S.f)&&(S.gf===''||(S.gf==='none'?!o.x.group:o.x.group===S.gf))).sort((a,b)=>b.h.length-a.h.length):[];
 return`<div class="card"><h3>Números sorteados</h3><p class="muted" style="margin:4px 0 12px">Informe as 6 dezenas do sorteio.</p><div class="six">${[0,1,2,3,4,5].map(i=>`<input class="rn" type="number" inputmode="numeric" min="1" max="60" value="${r?r[i]:''}" aria-label="Número ${i+1}">`).join('')}</div>
 <div class="row" style="margin-top:14px"><button class="btn ghost" onclick="saveR(0)">Conferir jogos</button><button class="btn gold" onclick="saveR(1)">Publicar para os participantes ${s.result&&s.result.published?'(publicado ✔)':''}</button></div></div>
-${r?`<div class="card" style="margin-top:14px"><div class="tools"><select onchange="S.f=this.value;adm()" style="max-width:240px"><option value="">Todos os acertos</option>${[0,1,2,3,4,5,6].map(i=>`<option ${S.f!==''&&S.f==i?'selected':''} value="${i}">${i} acerto(s)</option>`).join('')}</select><span class="muted">${rows.length} jogo(s)</span></div>
-<div class="tw"><table>${rows.map(o=>`<tr><td><b>${esc(o.x.name)}</b><br><span class="st ${o.g.status}">${o.g.status}</span></td><td>${balls(o.g,r,'sm')}</td><td><b>${o.h.length}</b> ${TIER[o.h.length]||''}</td></tr>`).join('')}</table></div></div>`:''}`}
+${r?`<div class="card" style="margin-top:14px"><div class="tools"><select onchange="S.f=this.value;adm()" style="max-width:240px"><option value="">Todos os acertos</option>${[0,1,2,3,4,5,6].map(i=>`<option ${S.f!==''&&S.f==i?'selected':''} value="${i}">${i} acerto(s)</option>`).join('')}</select><select onchange="S.gf=this.value;adm()" style="max-width:200px"><option value="">Todos os grupos</option><option value="familia" ${S.gf==='familia'?'selected':''}>Família</option><option value="trabalho" ${S.gf==='trabalho'?'selected':''}>Trabalho</option><option value="none" ${S.gf==='none'?'selected':''}>Sem grupo</option></select><span class="muted">${rows.length} jogo(s)</span></div>
+<div class="tw"><table>${rows.map(o=>`<tr><td><b>${esc(o.x.name)}</b><br>${gbadge(o.x.group)} <span class="st ${o.g.status}">${o.g.status}</span></td><td>${balls(o.g,r,'sm')}</td><td><b>${o.h.length}</b> ${TIER[o.h.length]||''}</td></tr>`).join('')}</table></div></div>`:''}`}
 async function saveR(pub){const nums=[...document.querySelectorAll('.rn')].map(i=>+i.value);if(pub&&!await ask({title:'Publicar resultado?',msg:'<p>Todos os participantes poderão ver o sorteio e os acertos.</p>',ok:'Publicar'}))return;if(await api('/a/result',{nums,publish:!!pub},1))reload(pub?'Resultado publicado':'Resultado salvo')}
-function tabW(s){return`<div class="card"><h3>Premiação</h3><p class="muted" style="margin:4px 0 0">Considera só jogos PAGOS. O valor é dividido por pessoa.</p>
-<label for="tr">Faixa</label><select id="tr"><option value="4">Quadra</option><option value="5">Quina</option><option value="6">Sena</option></select><label for="tv">Valor total recebido na faixa (R$)</label><input id="tv" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
+function tabW(s){return`<div class="card"><h3>Premiação</h3><p class="muted" style="margin:4px 0 0">Entram na divisão só os participantes do grupo escolhido, com jogos PAGOS. O valor é dividido por pessoa.</p>
+<label for="tg">Grupo que ganhou</label><select id="tg"><option value="familia">Família</option><option value="trabalho">Trabalho</option></select><label for="tr">Faixa</label><select id="tr"><option value="4">Quadra</option><option value="5">Quina</option><option value="6">Sena</option></select><label for="tv">Valor total recebido na faixa (R$)</label><input id="tv" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
 <div class="row" style="margin-top:16px"><button class="btn ghost" onclick="prize(0)">Calcular divisão</button><button class="btn gold" onclick="prize(1)">Confirmar e publicar</button></div><div id="pv" style="margin-top:14px"></div></div>
-<h3 class="h3">Premiações publicadas</h3>${s.prizes.map(p=>`<div class="card" style="margin-bottom:10px"><b>${TIER[p.tier]}</b> – ${R(p.total)} ÷ ${p.uids.length} = <b>${R(p.each)}</b> por pessoa</div>`).join('')||'<div class="card muted center">Nenhuma ainda.</div>'}`}
+<h3 class="h3">Premiações publicadas</h3>${s.prizes.map(p=>`<div class="card" style="margin-bottom:10px"><b>${GL[p.group]?'Bolão '+GL[p.group]+' · ':''}${TIER[p.tier]}</b> – ${R(p.total)} ÷ ${p.uids.length} = <b>${R(p.each)}</b> por pessoa</div>`).join('')||'<div class="card muted center">Nenhuma ainda.</div>'}`}
 async function prize(pub){if(pub&&!await ask({title:'Publicar divisão?',msg:'<p>Os ganhadores verão o valor no app.</p>',ok:'Publicar'}))return;
-const d=await api('/a/prize',{tier:$('#tr').value,total:$('#tv').value,publish:!!pub},1);if(!d)return;
-$('#pv').innerHTML=`<div class="notice">${d.uids.length} pessoa(s) contemplada(s) (${d.games} jogo(s)): ${d.uids.map(esc).join(', ')||'—'}<br>Valor individual: <b>${R(d.each)}</b></div>`;if(pub)reload('Premiação publicada')}
+const d=await api('/a/prize',{tier:$('#tr').value,total:$('#tv').value,group:$('#tg').value,publish:!!pub},1);if(!d)return;
+$('#pv').innerHTML=`<div class="notice">${d.uids.length} pessoa(s) contemplada(s) (${d.games} jogo(s)): ${d.uids.map(esc).join(', ')||'—'}<br>Valor individual: <b>${R(d.each)}</b></div>${d.sem&&d.sem.length?`<div class="notice warn" style="margin-top:8px">⚠️ Ganhador(es) pago(s) sem grupo, fora da divisão: ${d.sem.map(esc).join(', ')}</div>`:''}`;if(pub)reload('Premiação publicada')}
 function tabC(s){const c=s.config,f=(k,l,t='text',h='')=>`<label for="f_${k}">${l}</label><input id="f_${k}" data-k="${k}" type="${t}" value="${esc(c[k]??'')}" ${k==='pixKey'?`oninput="pxLive(this,'pixc')"`:''}>${h?`<p class="hint" style="margin-top:6px">${h}</p>`:''}`,ta=(k,l)=>`<label for="f_${k}">${l}</label><textarea id="f_${k}" data-k="${k}">${esc(c[k]??'')}</textarea>`;
 return`<div class="card cfg" id="cfgf"><h3>Bolão</h3>${f('name','Nome do bolão')}<h3>Recebimento via Pix</h3>${f('pixKey','Chave Pix (recebimento)','text','O tipo da chave é reconhecido automaticamente (CPF, CNPJ, e-mail, celular ou aleatória).')}<div class="pxs" id="pixc">${pxHtml(detectPix(c.pixKey))}</div>${f('pixName','Nome do recebedor (máx. 25)')}${f('pixCity','Cidade (máx. 15)')}
 <div style="margin-top:14px"><button class="btn ghost sm" onclick="testPix()">🔍 Testar QR Code Pix</button></div>
@@ -505,8 +517,8 @@ function testPix(){if(!detectPix(cv('pixKey')).ok)return toast('Preencha uma cha
 async function saveC(){const b={};document.querySelectorAll('#cfgf [data-k]').forEach(i=>b[i.dataset.k]=i.type==='number'?+i.value:i.value);b.closed=$('#cl').checked;if(!String(b.name).trim())return toast('Informe o nome do bolão.','err');if(String(b.pixKey||'').trim()){const kd=detectPix(b.pixKey);if(!kd.ok)return toast('Chave Pix inválida: '+(kd.msg||'confira o formato.'),'err');b.pixKey=kd.value}
 if(await api('/a/cfg',b,1)){S.cfg={...S.cfg,...b};$('#ttl').textContent=b.name;reload('Configurações salvas ✅')}}
 function tabL(s){return`<div class="card">${s.log.map(l=>`<div class="log"><time>${fmtT(l.t)}</time><span>${esc(l.m)}</span></div>`).join('')||'<p class="muted empty">Sem registros.</p>'}</div>`}
-function csv(){const u=usersMap(S.st),q=v=>{v=String(v??'');if(/^[=@]/.test(v))v="'"+v;return'"'+v.replace(/"/g,'""')+'"'},l=['Nome;Pix;Jogo;Status;Data'];
-S.st.games.forEach(g=>{const x=u[g.uid]||{};l.push([x.name,x.pix,g.nums.map(pad).join('-'),g.status,new Date(g.at).toLocaleString('pt-BR')].map(q).join(';'))});
+function csv(){const u=usersMap(S.st),q=v=>{v=String(v??'');if(/^[=@]/.test(v))v="'"+v;return'"'+v.replace(/"/g,'""')+'"'},l=['Nome;Grupo;Pix;Jogo;Status;Data'];
+S.st.games.forEach(g=>{const x=u[g.uid]||{};l.push([x.name,GL[x.group]||'',x.pix,g.nums.map(pad).join('-'),g.status,new Date(g.at).toLocaleString('pt-BR')].map(q).join(';'))});
 const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+l.join('\n')],{type:'text/csv'}));a.download='bolao.csv';a.click()}
 
 /* ================= INÍCIO DO APP ================= */
