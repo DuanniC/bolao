@@ -73,6 +73,8 @@ textarea{resize:vertical;min-height:84px}
 .ball.sm{width:29px;height:29px;font-size:12px}.ball.lg{width:100%;height:auto;aspect-ratio:1;font-size:19px;margin:0}
 .notices{display:grid;gap:8px;margin-top:16px}
 .notice{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:10px 14px;font-size:14px}
+.paynote{background:#fff8dd;border-color:#f3dc87;margin-top:14px;font-size:15px}
+.pxs{min-height:20px;margin-top:8px;font-size:13px;font-weight:600}.pxok{color:#0a6a32}.pxp{color:var(--mut)}.pxe{color:#c0272d}
 .notice.warn{border-color:#f3c7c7;background:#fff5f5;color:#9b2226;font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .chips span{background:#fff;border:1.5px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700}
@@ -214,24 +216,51 @@ const BIN='6b059849ffd5d16053da74b4',KEY='$2a$10$b1FZrJHII1lNt.rCgnSkq.mcKlqYjQ.
 const BASE='https://api.jsonbin.io/v3/b/'+BIN,PRICE=6,MIN=3;
 const DEF={name:'Bolão da Família – Mega da Virada',pixKey:'',pixName:'BOLAO',pixCity:'BELO HORIZONTE',deadline:'',payDeadline:'',holdMin:60,closed:false,
 msgHome:'Bem-vindo ao nosso bolão! 🍀',msgDup:'Ops! 🍀 Essa combinação já foi escolhida por alguém da família! Que tal tentar outros números? Aqui todo mundo merece uma chance diferente! 😂',
-msgPay:'🍀 Agora é com você! Faça o Pix para garantir sua participação no nosso bolão. Quem não pagar a tempo vai ficar de fora dessa chuva de dinheiro! 😂💸 A família está torcendo por você!'};
+msgPay:'🍀 Falta pouco! Faça o Pix agora para garantir sua participação no bolão. A família está torcendo por você! 💚'};
+const OLD_PAY='🍀 Agora é com você! Faça o Pix para garantir sua participação no nosso bolão. Quem não pagar a tempo vai ficar de fora dessa chuva de dinheiro! 😂💸 A família está torcendo por você!';
 
 /* ================= "SERVIDOR" (roda no navegador, grava no JSONBin) ================= */
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,'0')).join('');
 const kk=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' '),rid=()=>Math.random().toString(36).slice(2,10),ER=(m,d)=>{throw Object.assign(new Error(m),{d:{error:m,...d}})};
-const npix=s=>{s=String(s||'').trim().toLowerCase();return s.includes('@')?s:s.replace(/[\s.\-\/()]/g,'')};
+/* ---- identificação e validação automática da chave Pix ---- */
+function cpfOk(d){if(d.length!==11||/^(\d)\1+$/.test(d))return false;for(let t=9;t<11;t++){let s=0;for(let i=0;i<t;i++)s+=d[i]*(t+1-i);if((s*10%11)%10!=d[t])return false}return true}
+function cnpjOk(d){if(d.length!==14||/^(\d)\1+$/.test(d))return false;const w=[6,5,4,3,2,9,8,7,6,5,4,3,2],c=n=>{let s=0;for(let i=0;i<n;i++)s+=d[i]*w[w.length-n+i];const r=s%11;return r<2?0:11-r};return c(12)==d[12]&&c(13)==d[13]}
+function detectPix(raw){const v=String(raw||'').trim(),no=(type,label,msg,pending)=>({type,label,ok:false,msg,pending:!!pending}),yes=(type,label,value,show)=>({type,label,ok:true,value,show});
+if(!v)return no('','','',1);
+if(v.includes('@')){const e=v.toLowerCase();return /^[a-z0-9._%+\-]+@[a-z0-9\-]+(\.[a-z0-9\-]+)*\.[a-z]{2,}$/.test(e)?yes('email','E-mail',e,e):no('email','E-mail','continue digitando o endereço completo (ex.: nome@email.com).',1)}
+const hx=v.replace(/-/g,'');
+if(/^[0-9a-f-]+$/i.test(v)&&(/[a-f]/i.test(v)||(v.match(/-/g)||[]).length>=3)){
+ if(hx.length===32){const u=hx.toLowerCase().replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/,'$1-$2-$3-$4-$5');return yes('random','Chave aleatória',u,u)}
+ if(hx.length<32)return no('random','Chave aleatória','continue digitando (32 caracteres).',1);
+ return no('random','Chave aleatória','chave aleatória inválida: deve ter 32 caracteres.')}
+if(/^[\d\s.\-\/()+]+$/.test(v)){const plus=v.startsWith('+'),paren=/[()\s]/.test(v),dots=/[.\/]/.test(v),d=v.replace(/\D/g,'');
+ let ph=d;if(d.startsWith('55')&&(plus||d.length>=12))ph=d.slice(2);
+ const phOk=ph.length===11&&ph[2]==='9'&&+ph.slice(0,2)>=11,phone=()=>yes('phone','Celular','+55'+ph,`+55 (${ph.slice(0,2)}) ${ph.slice(2,7)}-${ph.slice(7)}`);
+ if(plus)return phOk?phone():no('phone','Celular','use +55, DDD e 9 dígitos (ex.: +55 31 99999-8888).',ph.length<11);
+ if(!paren&&d.length===11&&cpfOk(d))return yes('cpf','CPF',d,d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'));
+ if(phOk&&!dots)return phone();
+ if(d.length===14&&cnpjOk(d))return yes('cnpj','CNPJ',d,d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5'));
+ if(d.length<11){const g=dots?'CPF':paren?'Celular':'';return no(g,g,'continue digitando… (CPF: 11 dígitos · celular: DDD + 9 dígitos).',1)}
+ if(d.length===11)return dots?no('cpf','CPF','CPF inválido, confira os números.'):no('','','não é um CPF válido nem um celular (DDD + 9 dígitos). Se for celular, confira o DDD e o 9.');
+ if(d.length<14)return no('','','continue digitando… (CNPJ: 14 dígitos).',1);
+ return no('','','número inválido. Confira os dígitos.')}
+return no('','','formato não reconhecido. Use CPF, e-mail, celular com DDD ou chave aleatória.')}
+const npix=s=>{const d=detectPix(s);return d.ok?d.value:String(s||'').trim().toLowerCase().replace(/[\s.\-\/()]/g,'')};
+const pixShow=k=>{const d=detectPix(k);return d.ok?d.label+' · '+d.show:k},pixVal=k=>{const d=detectPix(k);return d.ok?d.value:k};
+const pxHtml=d=>!d.type&&!d.msg?'':d.ok?`<span class="pxok">✅ ${d.label} reconhecido: <b>${esc(d.show)}</b></span>`:`<span class="${d.pending?'pxp':'pxe'}">${d.pending?'⌨️':'⚠️'} ${d.label?d.label+': ':''}${esc(d.msg)}</span>`;
+function pxLive(el,id){$('#'+id).innerHTML=pxHtml(detectPix(el.value))}
 const ld=async()=>{const r=await fetch(BASE+'/latest',{headers:{'X-Access-Key':KEY,'X-Bin-Meta':'false'}});if(!r.ok)ER('Não foi possível ler o banco de dados ('+r.status+').');const d=await r.json();return d.record??d};
 const sv=async d=>{const r=await fetch(BASE,{method:'PUT',headers:{'X-Access-Key':KEY,'content-type':'application/json'},body:JSON.stringify(d)});if(!r.ok)ER('Falha ao salvar no JSONBin ('+r.status+'): '+(await r.text()).slice(0,150))}; // JSONBin guarda versões = backup
 async function srv(p,b,pw){
-const db=await ld(),now=Date.now();db.config={...DEF,...db.config};for(const k of['users','games','prizes','log'])db[k]??=[];db.result??=null;
+const db=await ld(),now=Date.now();db.config={...DEF,...db.config};if(db.config.msgPay===OLD_PAY)db.config.msgPay=DEF.msgPay;for(const k of['users','games','prizes','log'])db[k]??=[];db.result??=null;
 const hold=Math.max(5,+db.config.holdMin||60),n0=db.games.length;db.games=db.games.filter(g=>g.status==='PAGO'||now-g.at<hold*60000);let dirty=db.games.length!==n0;
 const C=db.config,log=m=>{db.log.push({t:new Date().toISOString(),m});dirty=true},out=async d=>{if(dirty)await sv(db);return d};
 const pubCfg=()=>({...C,holdMin:hold,hasAdmin:!!db.adminHash});
 if(p==='/cfg')return out(pubCfg());
 /* acesso: só primeiro nome + chave Pix (entra se já existe, cadastra se for novo) */
-if(p==='/enter'){const name=String(b.name||'').trim().replace(/\s+/g,' '),pix=String(b.pix||'').trim();if(!name||!pix)ER('Informe seu primeiro nome e sua chave Pix.');
+if(p==='/enter'){const name=String(b.name||'').trim().replace(/\s+/g,' '),pix=String(b.pix||'').trim();if(!name||!pix)ER('Informe seu primeiro nome e sua chave Pix.');const dp=detectPix(pix);if(!dp.ok)ER('Chave Pix inválida: '+(dp.msg||'confira o formato.'));
 let u=db.users.find(x=>kk(x.name)===kk(name)&&npix(x.pix)===npix(pix)),isNew=false;
-if(!u){u={id:rid(),name,pix,at:now};db.users.push(u);log('Cadastro: '+name);isNew=true}
+if(!u){u={id:rid(),name,pix:dp.value,pixType:dp.type,at:now};db.users.push(u);log('Cadastro: '+name);isNew=true}
 return out({uid:u.id,name:u.name,pix:u.pix,isNew})}
 if(p==='/me'||p==='/games'){const u=db.users.find(x=>x.id===b.uid&&npix(x.pix)===npix(b.pix));if(!u)ER('Cadastro não encontrado. Entre novamente.',{gone:1});const mine=db.games.filter(g=>g.uid===u.id);
 if(p==='/games'){if(C.closed||(C.deadline&&now>new Date(C.deadline)))ER('As inscrições estão encerradas.');const gs=b.games;if(!Array.isArray(gs)||!gs.length)ER('Nenhum jogo enviado.');
@@ -289,7 +318,7 @@ async function copyText(t){try{await navigator.clipboard.writeText(t)}catch{cons
 /* ================= PIX (BR Code estático) + QR ================= */
 const tlv=(i,v)=>i+String(v.length).padStart(2,'0')+v;
 const up=s=>String(s||'').normalize('NFD').replace(/[^\x20-\x7e]/g,'').replace(/[^A-Za-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().toUpperCase();
-const pixKeyFmt=k=>{k=String(k||'').trim();if(k.includes('@'))return k;if(/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(k))return k.toLowerCase();return k.replace(/[\s.\-\/()]/g,'')};
+const pixKeyFmt=k=>{const d=detectPix(k);return d.ok?d.value:String(k||'').trim().replace(/[\s.\-\/()]/g,'')};
 function crc(s){let c=0xFFFF;for(let k=0;k<s.length;k++){c^=s.charCodeAt(k)<<8;for(let i=0;i<8;i++)c=c&0x8000?((c<<1)^0x1021)&0xFFFF:(c<<1)&0xFFFF}return c.toString(16).toUpperCase().padStart(4,'0')}
 function pix(key,nm,city,amt,tx){const t=String(tx||'').replace(/[^A-Za-z0-9]/g,'').slice(0,25)||'***';
 const p=tlv('00','01')+tlv('26',tlv('00','br.gov.bcb.pix')+tlv('01',pixKeyFmt(key)))+tlv('52','0000')+tlv('53','986')+tlv('54',Number(amt).toFixed(2))+tlv('58','BR')+tlv('59',(up(nm)||'BOLAO').slice(0,25))+tlv('60',(up(city)||'BRASIL').slice(0,15))+tlv('62',tlv('05',t))+'6304';return p+crc(p)}
@@ -318,21 +347,22 @@ if(c.payDeadline)h+=`<div class="notice">💸 Pagamento até <b>${fmtT(c.payDead
 return h?`<div class="notices">${h}</div>`:''}
 const steps=()=>`<div class="sec-h"><span class="pill">Como funciona</span><h2>Simples como 1-2-3.</h2><p class="muted">Participar leva menos de dois minutos.</p></div>
 <div class="steps"><div class="card step"><span class="n">1</span><span class="ic">🎯</span><h3>Escolha seus números</h3><p>Marque 6 números de 01 a 60 ou use a surpresinha. Mínimo de ${MIN} jogos.</p></div>
-<div class="card step"><span class="n">2</span><span class="ic">💸</span><h3>Pague com Pix</h3><p>${R(PRICE)} por jogo. Escaneie o QR Code ou copie o código Pix.</p></div>
+<div class="card step"><span class="n">2</span><span class="ic">💸</span><h3>Pague na hora</h3><p>Pagamento no momento da realização do jogo: ${R(PRICE)} por jogo, por QR Code ou Pix copia e cola.</p></div>
 <div class="card step"><span class="n">3</span><span class="ic">🏆</span><h3>Torça com a família</h3><p>Pagamento confirmado, é só aguardar o sorteio e ver o resultado aqui.</p></div></div>`;
 
 /* ================= ACESSO ================= */
 function login(){const c=S.cfg;
-view(`<section class="hero"><div><span class="pill">🎆 Mega da Virada</span><h1>Sua sorte <span class="hl">começa aqui.</span></h1><p class="lead">${esc(c.msgHome)}</p>
-<div class="chips"><span>🎟️ ${R(PRICE)} por jogo</span><span>✋ Mínimo de ${MIN} jogos</span><span>⚡ Pagamento via Pix</span></div>${deadlineBox()}</div>
+view(`<section class="hero"><div><span class="pill">🎆 Mega da Virada</span><h1>Bem-vindo ao <span class="hl">nosso Bolão</span></h1>
+<div class="chips"><span>🎟️ ${R(PRICE)} por jogo</span><span>✋ Mínimo de ${MIN} jogos</span><span>⚡ Pagamento na hora, via Pix</span></div>${deadlineBox()}</div>
 <form class="card login" onsubmit="return doEnter(event)"><h2>Entrar no bolão</h2><p class="muted" style="margin-top:6px">Só precisa do seu primeiro nome e da sua chave Pix.</p>
 <label for="nm">Primeiro nome</label><input id="nm" autocomplete="given-name" autocapitalize="words" placeholder="Ex.: Maria" required>
-<label for="px">Sua chave Pix</label><input id="px" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="CPF, e-mail, celular ou aleatória" required>
+<label for="px">Sua chave Pix</label><input id="px" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="CPF, e-mail, celular ou aleatória" oninput="pxLive(this,'pxs')" required>
+<div class="pxs" id="pxs" aria-live="polite"></div>
 <div style="margin-top:20px"><button class="btn big" type="submit">Entrar →</button></div>
-<p class="hint">🔒 Sem senha. Na primeira vez seu cadastro é criado automaticamente; depois, use sempre os mesmos dados para ver seus jogos. Sua chave Pix serve para receber o prêmio, se a família ganhar! 🏆</p></form></section>
+<p class="hint">🔒 Sem senha. Na primeira vez seu cadastro é criado automaticamente; depois, use sempre os mesmos dados para ver seus jogos. Aceitamos CPF, e-mail, celular com DDD ou chave aleatória — o tipo é reconhecido enquanto você digita. Sua chave serve para receber o prêmio, se a família ganhar! 🏆</p></form></section>
 ${steps()}
 <div class="band"><svg viewBox="0 0 1440 34" preserveAspectRatio="none" aria-hidden="true"><path d="M0 34C240 0 480 0 720 17S1200 34 1440 6V0H0Z" fill="#f6fcf8"/></svg><h2>Pronto para tentar a sorte?</h2><p>Entre com seu nome e sua chave Pix e faça seus jogos.</p><a class="btn gold" href="#/" onclick="scrollTo({top:0,behavior:'smooth'});setTimeout(()=>$('#nm').focus(),400);return false">Entrar agora →</a></div>`)}
-async function doEnter(e){e.preventDefault();const d=await api('/enter',{name:$('#nm').value,pix:$('#px').value});if(!d)return false;
+async function doEnter(e){e.preventDefault();const dp=detectPix($('#px').value);if(!dp.ok){toast('Chave Pix inválida: '+(dp.msg||'confira o formato.'),'err');$('#px').focus();return false}const d=await api('/enter',{name:$('#nm').value,pix:dp.value});if(!d)return false;
 S.auth={uid:d.uid,pix:d.pix,name:d.name};store.set('bolao',JSON.stringify(S.auth));toast(d.isNew?'Cadastro criado! Bem-vindo(a), '+d.name+' 🍀':'Que bom te ver de novo, '+d.name+'! 🍀');
 const r=await srv('/cfg',{}).catch(()=>null);if(r)S.cfg=r;nav('/');return false}
 
@@ -341,7 +371,7 @@ async function home(){const d=await me();if(!d)return;const gs=d.games,paid=gs.f
 view(`<section class="welcome"><span class="pill">Olá!</span><h1>Oi, ${esc(S.auth.name)}! 👋</h1><p>${esc(S.cfg.msgHome)}</p>
 <div class="tiles"><div class="tile"><small>Jogos</small><b>${gs.length}</b></div><div class="tile"><small>Pagos</small><b>${paid}</b></div><div class="tile"><small>Pendentes</small><b>${pend}</b></div><div class="tile"><small>Total</small><b>${R(gs.length*PRICE)}</b></div></div>
 ${deadlineBox()}<div style="margin-top:18px"><a class="btn gold" href="#/jogar">🎲 Fazer meus jogos</a></div></section>
-${pb.map(bg=>`<div class="alert"><span style="font-size:28px">⏳</span><div class="t"><b>${bg.length} jogo(s) aguardando pagamento · ${R(bg.length*PRICE)}</b><br><small class="muted">Faça o Pix antes que a reserva expire.</small></div><a class="btn sm" href="#/pagar/${bg[0].b}">Pagar com Pix</a></div>`).join('')}
+${pb.map(bg=>`<div class="alert"><span style="font-size:28px">⏳</span><div class="t"><b>${bg.length} jogo(s) aguardando pagamento · ${R(bg.length*PRICE)}</b><br><small class="muted">O pagamento é feito no momento do jogo — pague agora.</small></div><a class="btn sm" href="#/pagar/${bg[0].b}">Pagar com Pix</a></div>`).join('')}
 <div class="actions"><a class="act gold" href="#/jogar"><span class="ic">🎲</span><span><b>Fazer jogos</b><small>Escolha 6 números ou surpresinha</small></span><span class="ar">›</span></a>
 <a class="act" href="#/meus"><span class="ic">📋</span><span><b>Meus jogos</b><small>${gs.length} jogo(s) · ${paid} pago(s)</small></span><span class="ar">›</span></a>
 <a class="act" href="#/resultados"><span class="ic">🏆</span><span><b>Resultados e premiações</b><small>Confira o sorteio e seus prêmios</small></span><span class="ar">›</span></a></div>
@@ -355,7 +385,7 @@ view(`<div class="play"><div class="card"><div class="ch"><h2>Escolha 6 números
 <div class="acts3"><button class="btn ghost" onclick="lucky()">✨ Surpresinha</button><button class="btn ghost" onclick="S.sel=[];paintPlay()">Limpar</button>
 <button class="btn full" id="addb" onclick="addG()">➕ Adicionar jogo</button><button class="btn gold full" onclick="luckyN(3)">🎲 Gerar 3 surpresinhas de uma vez</button></div></div>
 <aside class="card sticky"><div class="ch"><h3>Seus jogos (<span id="cnt">0</span>)</h3><span class="muted">${R(PRICE)} cada</span></div><div id="draft"></div>
-<div class="total"><span>Total</span><b id="tot"></b></div><button class="btn big" onclick="submitGames()">Avançar para o pagamento →</button><p class="hint" id="minhint"></p></aside></div>
+<div class="total"><span>Total</span><b id="tot"></b></div><div class="notice" style="margin-bottom:12px">💸 Pagamento no momento da realização do jogo.</div><button class="btn big" onclick="submitGames()">Avançar para o pagamento →</button><p class="hint" id="minhint"></p></aside></div>
 <div class="sbar"><div class="si"><b id="sb1"></b><small id="sb2"></small></div><button class="btn" onclick="submitGames()">Avançar →</button></div>`,{focus:1});paintPlay()}
 function paintPlay(){const sel=[...S.sel].sort((a,b)=>a-b);
 $('#tray').innerHTML=Array.from({length:6},(_,i)=>sel[i]?`<span class="ball lg">${pad(sel[i])}</span>`:'<span class="slot"></span>').join('');
@@ -387,11 +417,11 @@ if(!c.pixKey){view(`<div class="card center paywrap"><h2>Pix ainda não configur
 const code=pix(c.pixKey,c.pixName,c.pixCity,total,'BOLAO'+batch),exp=Math.min(...gs.map(g=>g.at))+c.holdMin*60000,qr=qrSvg(code);
 view(`<div class="paywrap"><div class="card center"><span class="pill">Pagamento via Pix</span><h2 style="margin-top:12px">${esc(S.auth.name)}, falta pouco!</h2>
 <p class="muted" style="margin-top:6px">${gs.length} jogo(s) reservado(s)</p><div class="amount">${R(total)}</div>
-<p style="margin:12px 0">${esc(c.msgPay)}</p><span class="tm">⏳ Reserva expira em <span id="cd"></span></span>
+<div class="notice paynote">💸 <b>Pagamento no momento da realização do jogo</b></div><p style="margin:12px 0">${esc(c.msgPay)}</p><span class="tm">⏳ Reserva expira em <span id="cd"></span></span>
 ${qr?`<div class="qrbox">${qr}</div><p class="hint" style="margin-top:0">Abra o app do seu banco → Pix → <b>Ler QR Code</b></p>`:'<p class="hint">Não foi possível gerar o QR Code. Use o código abaixo.</p>'}
 <div class="code" id="cc">${esc(code)}</div><button class="btn big" onclick="copyText($('#cc').textContent)">📋 Copiar Pix Copia e Cola</button>
 <p class="hint">Recebedor: <b>${esc(c.pixName)}</b> · ${esc(c.pixCity)}</p>
-<ul class="ol"><li><span>1</span>Pague o valor exato de ${R(total)} pelo Pix.</li><li><span>2</span><p>O administrador confirma o pagamento e seus jogos passam a <b>PAGO</b>.</p></li><li><span>3</span>Acompanhe tudo em “Meus jogos”.</li></ul>
+<ul class="ol"><li><span>1</span>Pague agora o valor exato de ${R(total)} pelo Pix, no momento do jogo.</li><li><span>2</span><p>O administrador confirma o pagamento e seus jogos passam a <b>PAGO</b>.</p></li><li><span>3</span>Acompanhe tudo em “Meus jogos”.</li></ul>
 ${list}<a class="btn ghost big" href="#/meus" style="margin-top:8px">Ver meus jogos</a></div></div>`);
 const tickf=()=>{const e=$('#cd');if(!e)return clearInterval(S.tick);const ms=exp-Date.now();e.textContent=ms>0?Math.floor(ms/6e4)+':'+pad(Math.floor(ms%6e4/1000)):'expirada'};tickf();S.tick=setInterval(tickf,1000)}
 
@@ -439,9 +469,9 @@ function ulist(s){const r=s.result?s.result.nums:null,q=kk(S.q);
 const rows=s.users.map(u=>{const gs=s.games.filter(g=>g.uid===u.id);return{u,gs,last:Math.max(u.at||0,...gs.map(g=>g.at)),pe:gs.filter(g=>g.status!=='PAGO').length}})
 .filter(o=>(!q||kk(o.u.name).includes(q)||kk(o.u.pix).includes(q))&&(S.pf==='all'||(S.pf==='pend'&&o.pe)||(S.pf==='paid'&&o.gs.length&&!o.pe)||(S.pf==='none'&&!o.gs.length))).sort((a,b)=>b.last-a.last);
 return rows.map(({u,gs,pe})=>{const open=S.open[u.id];
-return`<div class="ucard ${open?'open':''}"><div class="uh" onclick="togU('${u.id}')"><span class="av">${esc(u.name.trim()[0]||'?')}</span><div class="um"><b>${esc(u.name)}</b><small>${esc(u.pix)}</small>
+return`<div class="ucard ${open?'open':''}"><div class="uh" onclick="togU('${u.id}')"><span class="av">${esc(u.name.trim()[0]||'?')}</span><div class="um"><b>${esc(u.name)}</b><small>${esc(pixShow(u.pix))}</small>
 <div class="sum"><span class="sm2">🎟️ ${gs.length} jogo(s)</span><span class="sm2">💰 ${R(gs.length*PRICE)}</span>${pe?`<span class="st PENDENTE">${pe} pendente(s)</span>`:''}${gs.length&&!pe?'<span class="st PAGO">TUDO PAGO</span>':''}</div></div><span class="chev">▾</span></div>
-${open?`<div class="ub"><div class="row" style="margin:10px 0"><button class="btn sm ghost" data-copy="${esc(u.pix)}" onclick="copyText(this.dataset.copy)">📋 Copiar Pix</button><button class="btn sm dgh" onclick="delU('${u.id}')">🗑 Excluir participante</button></div>
+${open?`<div class="ub"><div class="row" style="margin:10px 0"><button class="btn sm ghost" data-copy="${esc(pixVal(u.pix))}" onclick="copyText(this.dataset.copy)">📋 Copiar Pix</button><button class="btn sm dgh" onclick="delU('${u.id}')">🗑 Excluir participante</button></div>
 ${groupB(gs).map(bg=>{const pd=bg.every(g=>g.status==='PAGO');return`<div class="gm"><div class="bth"><span><span class="st ${pd?'PAGO':'PENDENTE'}">${pd?'PAGO':'PENDENTE'}</span> <small class="muted"><b>${fmtT(bg[0].at)}</b> · ${R(bg.length*PRICE)}</small></span><button class="btn sm ${pd?'ghost':''}" onclick="payB('${bg[0].b}',${!pd})">${pd?'Voltar p/ pendente':'✔ Marcar como pago'}</button></div>
 ${bg.map(g=>{const h=r?hitsOf(g,r).length:null;return`<div class="gl"><div>${balls(g,r,'sm')}${h!==null?`<small class="muted"> ${h} acerto(s)</small>`:''}</div><button class="x" onclick="delG('${g.id}')" aria-label="Excluir jogo" title="Excluir jogo">🗑</button></div>`}).join('')}</div>`}).join('')||'<p class="muted empty">Sem jogos ainda.</p>'}</div>`:''}</div>`}).join('')||'<div class="card center muted" style="margin-top:12px">Nenhum participante encontrado.</div>'}
 const togU=id=>{S.open[id]=!S.open[id];paintU()};
@@ -465,15 +495,15 @@ function tabW(s){return`<div class="card"><h3>Premiação</h3><p class="muted" s
 async function prize(pub){if(pub&&!await ask({title:'Publicar divisão?',msg:'<p>Os ganhadores verão o valor no app.</p>',ok:'Publicar'}))return;
 const d=await api('/a/prize',{tier:$('#tr').value,total:$('#tv').value,publish:!!pub},1);if(!d)return;
 $('#pv').innerHTML=`<div class="notice">${d.uids.length} pessoa(s) contemplada(s) (${d.games} jogo(s)): ${d.uids.map(esc).join(', ')||'—'}<br>Valor individual: <b>${R(d.each)}</b></div>`;if(pub)reload('Premiação publicada')}
-function tabC(s){const c=s.config,f=(k,l,t='text',h='')=>`<label for="f_${k}">${l}</label><input id="f_${k}" data-k="${k}" type="${t}" value="${esc(c[k]??'')}">${h?`<p class="hint" style="margin-top:6px">${h}</p>`:''}`,ta=(k,l)=>`<label for="f_${k}">${l}</label><textarea id="f_${k}" data-k="${k}">${esc(c[k]??'')}</textarea>`;
-return`<div class="card cfg" id="cfgf"><h3>Bolão</h3>${f('name','Nome do bolão')}<h3>Recebimento via Pix</h3>${f('pixKey','Chave Pix (recebimento)','text','CPF/CNPJ: só números · Celular: +5531999999999 · ou e-mail · ou chave aleatória')}${f('pixName','Nome do recebedor (máx. 25)')}${f('pixCity','Cidade (máx. 15)')}
+function tabC(s){const c=s.config,f=(k,l,t='text',h='')=>`<label for="f_${k}">${l}</label><input id="f_${k}" data-k="${k}" type="${t}" value="${esc(c[k]??'')}" ${k==='pixKey'?`oninput="pxLive(this,'pixc')"`:''}>${h?`<p class="hint" style="margin-top:6px">${h}</p>`:''}`,ta=(k,l)=>`<label for="f_${k}">${l}</label><textarea id="f_${k}" data-k="${k}">${esc(c[k]??'')}</textarea>`;
+return`<div class="card cfg" id="cfgf"><h3>Bolão</h3>${f('name','Nome do bolão')}<h3>Recebimento via Pix</h3>${f('pixKey','Chave Pix (recebimento)','text','O tipo da chave é reconhecido automaticamente (CPF, CNPJ, e-mail, celular ou aleatória).')}<div class="pxs" id="pixc">${pxHtml(detectPix(c.pixKey))}</div>${f('pixName','Nome do recebedor (máx. 25)')}${f('pixCity','Cidade (máx. 15)')}
 <div style="margin-top:14px"><button class="btn ghost sm" onclick="testPix()">🔍 Testar QR Code Pix</button></div>
 <h3>Prazos</h3>${f('deadline','Prazo final de participação','datetime-local')}${f('payDeadline','Prazo final de pagamento','datetime-local')}${f('holdMin','Reserva de jogos pendentes (minutos)','number','Depois desse tempo, jogos sem pagamento são liberados automaticamente.')}
 <h3>Mensagens</h3>${ta('msgHome','Mensagem inicial')}${ta('msgPay','Mensagem de pagamento')}${ta('msgDup','Mensagem de número repetido')}
 <label class="sw"><input type="checkbox" id="cl" ${c.closed?'checked':''}> 🔒 Encerrar inscrições agora</label><div style="margin-top:18px"><button class="btn big" onclick="saveC()">Salvar configurações</button></div></div>`}
 const cv=k=>$('#cfgf [data-k='+k+']').value;
-function testPix(){if(!cv('pixKey').trim())return toast('Preencha a chave Pix primeiro.','err');ask({title:'Teste do QR Pix (R$ 6,00)',msg:`<div class="qrbox">${qrSvg(pix(cv('pixKey'),cv('pixName'),cv('pixCity'),PRICE,'TESTE'+rid()))}</div><p class="hint center">Escaneie com o app do banco só para conferir o recebedor. Não precisa pagar.</p>`,ok:'Fechar',cancel:false})}
-async function saveC(){const b={};document.querySelectorAll('#cfgf [data-k]').forEach(i=>b[i.dataset.k]=i.type==='number'?+i.value:i.value);b.closed=$('#cl').checked;if(!String(b.name).trim())return toast('Informe o nome do bolão.','err');
+function testPix(){if(!detectPix(cv('pixKey')).ok)return toast('Preencha uma chave Pix válida primeiro.','err');ask({title:'Teste do QR Pix (R$ 6,00)',msg:`<div class="qrbox">${qrSvg(pix(cv('pixKey'),cv('pixName'),cv('pixCity'),PRICE,'TESTE'+rid()))}</div><p class="hint center">Escaneie com o app do banco só para conferir o recebedor. Não precisa pagar.</p>`,ok:'Fechar',cancel:false})}
+async function saveC(){const b={};document.querySelectorAll('#cfgf [data-k]').forEach(i=>b[i.dataset.k]=i.type==='number'?+i.value:i.value);b.closed=$('#cl').checked;if(!String(b.name).trim())return toast('Informe o nome do bolão.','err');if(String(b.pixKey||'').trim()){const kd=detectPix(b.pixKey);if(!kd.ok)return toast('Chave Pix inválida: '+(kd.msg||'confira o formato.'),'err');b.pixKey=kd.value}
 if(await api('/a/cfg',b,1)){S.cfg={...S.cfg,...b};$('#ttl').textContent=b.name;reload('Configurações salvas ✅')}}
 function tabL(s){return`<div class="card">${s.log.map(l=>`<div class="log"><time>${fmtT(l.t)}</time><span>${esc(l.m)}</span></div>`).join('')||'<p class="muted empty">Sem registros.</p>'}</div>`}
 function csv(){const u=usersMap(S.st),q=v=>{v=String(v??'');if(/^[=@]/.test(v))v="'"+v;return'"'+v.replace(/"/g,'""')+'"'},l=['Nome;Pix;Jogo;Status;Data'];
